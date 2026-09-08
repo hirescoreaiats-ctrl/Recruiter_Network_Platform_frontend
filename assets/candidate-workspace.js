@@ -1,6 +1,8 @@
 /* Candidate-only navigation and resume page. Other role workspaces stay intact. */
 const candidateUiIcons = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/>',
   profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
   file: '<path d="M14 2H5v20h14V7zM14 2v6h5M8 12h8M8 16h6"/>',
@@ -21,7 +23,7 @@ async function openCandidateConversation() {
     history.pushState({}, '', '/candidate/dashboard');
     await dashboard();
   }
-  const input = document.querySelector('#career-message');
+  const input = document.querySelector('#job-search-keyword, #career-message');
   if (input) {
     input.scrollIntoView({behavior: 'smooth', block: 'center'});
     input.focus({preventScroll: true});
@@ -37,16 +39,23 @@ layout = function(content, title) {
   shell.classList.add('candidate-workspace-shell');
   const sidebar = shell.querySelector('.sidebar');
   const logoutAction = document.querySelector('#logout').onclick;
-  const sections = [ ['Home', '/candidate/dashboard', 'home'], ['My Profile', '/candidate/profile', 'profile'], ['Availability', '/candidate/availability', 'clock'], ['My Resume', '/candidate/resume', 'file'] ];
+  const sections = [
+    ['Home', '/candidate/dashboard', 'home'],
+    ['Find Jobs', '/candidate/jobs', 'search'],
+    ['My Applications', '/candidate/applications', 'briefcase'],
+    ['My Profile', '/candidate/profile', 'profile'],
+    ['Availability', '/candidate/availability', 'clock'],
+    ['My Resume', '/candidate/resume', 'file']
+  ];
   sidebar.id = 'candidate-navigation';
   sidebar.innerHTML = `
-    <a class="cw-brand" href="/candidate/dashboard" data-link aria-label="HireScore AI home"><span class="cw-logo"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M5 22V13h5v9zm8 0V8h5v14zm8 0V3h5v19z" fill="currentColor"/><path d="m5 26 21-8" stroke="#9c91ff" stroke-width="2"/></svg></span><span><strong>HireScore AI</strong><small>CANDIDATE WORKSPACE</small></span></a>
-    <div class="cw-nav-body"><span class="cw-section-label">WORKSPACE</span><nav class="nav cw-nav" aria-label="Candidate workspace">${sections.map(([label,path,icon]) => `<a href="${path}" data-link class="${location.pathname===path?'active':''}" ${location.pathname===path?'aria-current="page"':''}><span class="cw-nav-icon">${candidateIcon(icon)}</span><span>${label}</span></a>`).join('')}</nav></div>
+    <a class="cw-brand" href="/candidate/dashboard" data-link aria-label="HireScore AI home"><span class="cw-logo"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M5 22V13h5v9zm8 0V8h5v14zm8 0V3h5v19z" fill="currentColor"/><path d="m5 26 21-8" stroke="#9c91ff" stroke-width="2"/></svg></span><span><strong>HireScore AI</strong><small>CANDIDATE JOB PORTAL</small></span></a>
+    <div class="cw-nav-body"><span class="cw-section-label">JOB SEEKER</span><nav class="nav cw-nav" aria-label="Candidate job portal">${sections.map(([label,path,icon]) => `<a href="${path}" data-link class="${location.pathname===path?'active':''}" ${location.pathname===path?'aria-current="page"':''}><span class="cw-nav-icon">${candidateIcon(icon)}</span><span>${label}</span></a>`).join('')}</nav></div>
     <div class="cw-sidebar-bottom"><button type="button" id="logout" class="cw-logout">${candidateIcon('logout')}<span>Logout</span></button></div>`;
   sidebar.querySelector('#logout').onclick = logoutAction;
   const pageLabel = sections.find(([,path]) => path === location.pathname)?.[0] || title;
   const initials = session.user.name.split(/\s+/).map(word => word[0]).slice(0,2).join('').toUpperCase();
-  shell.querySelector('.topbar').innerHTML = `<div class="cw-breadcrumb"><button type="button" class="cw-menu" aria-label="Open navigation" aria-controls="candidate-navigation" aria-expanded="false">${candidateIcon('menu')}</button><span>Workspace</span><i>/</i><b>${candidateEscape(pageLabel)}</b></div><div class="cw-top-actions"><span class="cw-local">Local workspace</span><button type="button" class="cw-top-agent">${candidateIcon('spark')}<span>Ask your agent</span></button><a href="/candidate/profile" data-link class="cw-top-avatar" aria-label="My profile">${candidateEscape(initials)}</a></div>`;
+  shell.querySelector('.topbar').innerHTML = `<div class="cw-breadcrumb"><button type="button" class="cw-menu" aria-label="Open navigation" aria-controls="candidate-navigation" aria-expanded="false">${candidateIcon('menu')}</button><span>Job Portal</span><i>/</i><b>${candidateEscape(pageLabel)}</b></div><div class="cw-top-actions"><a href="/candidate/jobs" data-link class="cw-find-jobs">${candidateIcon('search')}<span>Find jobs</span></a><a href="/candidate/profile" data-link class="cw-top-avatar" aria-label="My profile">${candidateEscape(initials)}</a></div>`;
   const overlay = document.createElement('button');
   overlay.className = 'cw-nav-backdrop';
   overlay.setAttribute('aria-label', 'Close navigation');
@@ -61,7 +70,8 @@ layout = function(content, title) {
   menu.onclick = () => setOpen(!sidebar.classList.contains('open'));
   overlay.onclick = () => { setOpen(false); menu.focus(); };
   shell.onkeydown = event => { if (event.key === 'Escape') { setOpen(false); menu.focus(); } };
-  shell.querySelector('.cw-top-agent').onclick = openCandidateConversation;
+  const agentButton = shell.querySelector('.cw-top-agent');
+  if (agentButton) agentButton.onclick = openCandidateConversation;
 };
 
 resumePage = async function() {
@@ -135,4 +145,3 @@ resumePage = async function() {
     };
   } catch (error) { toast(error.message, true); }
 };
-if (session?.user.role === 'candidate') render();
