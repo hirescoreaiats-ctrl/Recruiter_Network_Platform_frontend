@@ -23,6 +23,18 @@
 .cpw-panel > header > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; color: #574de7; background: #efedff; font-size: 10px; font-weight: 800; }
 .cpw-panel > header h2 { font-size: 17px; }
 .cpw-panel > header p { margin-top: 4px; color: #7b8494; font-size: 10px; }
+.cpw-photo { display: flex; align-items: center; gap: 17px; margin: 22px 24px 0; padding: 17px; border: 1px solid #e1e5ed; border-radius: 10px; background: #fafbfc; }
+.cpw-photo-preview { width: 74px; height: 74px; flex: 0 0 74px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #6256d8, #3145a0); font-size: 18px; font-weight: 800; overflow: hidden; }
+.cpw-photo-preview img, .cw-top-avatar img, .jp-profile-avatar img, .jp-profile-head > span img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cw-top-avatar.has-photo, .jp-profile-avatar.has-photo, .jp-profile-head > span.has-photo { padding: 0; overflow: hidden; }
+.cpw-photo > div:last-child { min-width: 0; }
+.cpw-photo b { display: block; font-size: 12px; }
+.cpw-photo p { margin-top: 4px; color: #7b8494; font-size: 9px; }
+.cpw-photo label { display: inline-flex; margin-top: 10px; cursor: pointer; }
+.cpw-photo label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.cpw-photo label span { padding: 7px 11px; border: 1px solid #cbc8ed; border-radius: 7px; color: #4f46e5; background: #fff; font-size: 9px; font-weight: 750; }
+.cpw-photo small { display: block; margin-top: 7px; color: #8a93a3; font-size: 8px; }
+.cpw-photo small.error { color: #c92a2a; }
 .cpw-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; padding: 24px; }
 .cpw-fields label, .cpw-fields .field { min-width: 0; }
 .cpw-fields label.wide { grid-column: 1 / -1; }
@@ -99,4 +111,4 @@
 .cpw-aside .cpw-strength h3 { margin-top: 0; }
 @media (max-width: 1050px) { .cpw-layout { grid-template-columns: 1fr; } .cpw-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 780px) { .cpw-page { padding: 20px 14px 38px; } .cpw-header { align-items: flex-start; } .cpw-progress-copy { display: none; } .cpw-steps { grid-template-columns: repeat(5, 1fr); } .cpw-steps button { justify-content: center; padding: 11px 5px; } .cpw-steps button > div { display: none; } .cpw-fields { grid-template-columns: 1fr; padding: 18px; } .cpw-fields label.wide { grid-column: auto; } .cpw-panel { min-height: 0; } .cpw-market, .cpw-resume-current, .cpw-upload, .cpw-review { margin-left: 18px; margin-right: 18px; } .cpw-aside { grid-template-columns: 1fr; } }
-@media (max-width: 480px) { .cpw-header h1 { font-size: 25px; } .cpw-actions { align-items: stretch; flex-direction: column; } .cpw-actions > div { width: 100%; margin-left: 0; justify-content: space-between; } .cpw-date, #wizard-review { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .cpw-header h1 { font-size: 25px; } .cpw-photo { align-items: flex-start; } .cpw-photo-preview { width: 58px; height: 58px; flex-basis: 58px; } .cpw-actions { align-items: stretch; flex-direction: column; } .cpw-actions > div { width: 100%; margin-left: 0; justify-content: space-between; } .cpw-date, #wizard-review { grid-template-columns: 1fr; } }

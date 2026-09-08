@@ -16,6 +16,19 @@ const candidateUiIcons = {
 const candidateIcon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${candidateUiIcons[name] || candidateUiIcons.file}</svg>`;
 const candidateEscape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const candidateFileSize = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+async function hydrateCandidateAvatar() {
+  try {
+    const response = await fetch(`${API}/candidate/profile-picture`, {headers: {Authorization: `Bearer ${session.access_token}`}});
+    if (!response.ok) return;
+    const blob = await response.blob();
+    if (window.candidateAvatarObjectUrl) URL.revokeObjectURL(window.candidateAvatarObjectUrl);
+    window.candidateAvatarObjectUrl = URL.createObjectURL(blob);
+    document.querySelectorAll('.cw-top-avatar, .jp-profile-avatar, .jp-profile-head > span, .cpw-photo-preview').forEach(target => {
+      target.innerHTML = `<img src="${window.candidateAvatarObjectUrl}" alt="${candidateEscape(session.user.name)} profile picture">`;
+      target.classList.add('has-photo');
+    });
+  } catch (_) { /* Initials remain visible when no profile picture is available. */ }
+}
 const candidateBaseLayout = layout;
 layout = function(content, title) {
   candidateBaseLayout(content, title);
@@ -55,6 +68,7 @@ layout = function(content, title) {
   menu.onclick = () => setOpen(!sidebar.classList.contains('open'));
   overlay.onclick = () => { setOpen(false); menu.focus(); };
   shell.onkeydown = event => { if (event.key === 'Escape') { setOpen(false); menu.focus(); } };
+  hydrateCandidateAvatar();
 };
 
 resumePage = async function() {

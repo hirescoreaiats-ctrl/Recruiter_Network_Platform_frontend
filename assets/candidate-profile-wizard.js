@@ -9,6 +9,7 @@ profilePage = async function () {
     const availability = matchingStatus.availability || {};
     const originalCountry = profile.country;
     const maxBytes = profile.max_resume_bytes || 5 * 1024 * 1024;
+    const maxPictureBytes = 2 * 1024 * 1024;
     const resumeName = profile.resume_file?.original_name || 'Current resume';
     const value = key => portalText(details[key] || '');
     const availabilityOptions = [
@@ -28,7 +29,7 @@ profilePage = async function () {
       <header class="cpw-header"><div><span>AI TALENT PROFILE</span><h1>Build your complete candidate profile</h1><p>Five focused steps give HireScoreAI the structured evidence it needs to identify strong recruiter matches.</p></div><div class="cpw-progress-copy"><b id="cpw-progress-value">20%</b><small>Profile setup progress</small></div></header>
       <nav class="cpw-steps" aria-label="Profile creation progress">${steps.map(([title, copy], index) => `<button type="button" data-wizard-step="${index + 1}" class="${index === 0 ? 'active' : ''}"><span>${index + 1}</span><div><b>${title}</b><small>${copy}</small></div></button>`).join('')}</nav>
       <div class="cpw-layout"><main><form id="candidate-profile-wizard" novalidate>
-        <section class="cpw-panel active" data-step-panel="1"><header><span>01</span><div><h2>Identity & contact</h2><p>Information recruiters use to identify you and communicate securely.</p></div></header><div class="cpw-fields">
+        <section class="cpw-panel active" data-step-panel="1"><header><span>01</span><div><h2>Identity & contact</h2><p>Information recruiters use to identify you and communicate securely.</p></div></header><div class="cpw-photo"><div class="cpw-photo-preview">${portalText(profile.full_name.split(/\s+/).map(word => word[0]).slice(0, 2).join('').toUpperCase())}</div><div><b>Profile picture</b><p>Add a clear, professional headshot. JPG, PNG or WebP up to 2 MB.</p><label><input id="wizard-picture" name="profile_picture" type="file" accept="image/jpeg,image/png,image/webp"><span>Choose photo</span></label><small id="wizard-picture-name">Your current photo will remain unless you choose a new one.</small></div></div><div class="cpw-fields">
           <label><span>Full name *</span><input name="full_name" autocomplete="name" value="${portalText(profile.full_name)}" required></label>
           <label><span>Profile email *</span><input name="email" type="email" autocomplete="email" value="${portalText(profile.email)}" required></label>
           <label><span>Phone number *</span><input name="phone" type="tel" autocomplete="tel" value="${portalText(profile.phone)}" required></label>
@@ -121,6 +122,21 @@ profilePage = async function () {
       document.querySelector('#wizard-file-name').textContent = file && !error ? `${file.name} · ${candidateFileSize(file.size)}` : 'No valid new file selected';
       if (error) resumeInput.value = '';
     };
+    const pictureInput = document.querySelector('#wizard-picture');
+    pictureInput.onchange = () => {
+      const file = pictureInput.files[0];
+      const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+      const error = file && (!allowed.includes(file.type) ? 'Choose a JPG, PNG or WebP image.' : file.size > maxPictureBytes ? 'The profile picture must be 2 MB or smaller.' : !file.size ? 'The selected image is empty.' : '');
+      const feedback = document.querySelector('#wizard-picture-name');
+      feedback.textContent = error || (file ? `${file.name} · ${candidateFileSize(file.size)}` : 'Your current photo will remain.');
+      feedback.classList.toggle('error', Boolean(error));
+      if (error) { pictureInput.value = ''; return; }
+      if (file) {
+        const preview = document.querySelector('.cpw-photo-preview');
+        preview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="New profile picture preview">`;
+        preview.classList.add('has-photo');
+      }
+    };
 
     form.onsubmit = async event => {
       event.preventDefault();
@@ -132,6 +148,8 @@ profilePage = async function () {
       submit.disabled = true; submit.textContent = 'Saving profile…';
       try {
         await api('/candidate/profile', {method: 'PUT', body: JSON.stringify(body)});
+        const picture = pictureInput.files[0];
+        if (picture) { submit.textContent = 'Uploading profile picture…'; const pictureUpload = new FormData(); pictureUpload.append('file', picture); await api('/candidate/profile-picture', {method: 'POST', body: pictureUpload}); }
         const file = resumeInput.files[0];
         if (file) { submit.textContent = 'Uploading resume…'; const upload = new FormData(); upload.append('file', file); await api(`/candidates/${profile.id}/resume`, {method: 'POST', body: upload}); }
         submit.textContent = 'Saving availability…';
