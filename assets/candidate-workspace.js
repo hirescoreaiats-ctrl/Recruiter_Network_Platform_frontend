@@ -15,6 +15,10 @@ const candidateUiIcons = {
 };
 const candidateIcon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${candidateUiIcons[name] || candidateUiIcons.file}</svg>`;
 const candidateEscape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const candidateInitials = value => {
+  const names = String(value || '').trim().split(/\s+/).filter(Boolean);
+  return names.length ? `${names[0][0]}${names.length > 1 ? names[names.length - 1][0] : ''}`.toUpperCase() : '?';
+};
 const candidateFileSize = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 async function hydrateCandidateAvatar() {
   try {
@@ -52,7 +56,7 @@ layout = function(content, title) {
     <div class="cw-sidebar-bottom"><button type="button" id="logout" class="cw-logout">${candidateIcon('logout')}<span>Logout</span></button></div>`;
   sidebar.querySelector('#logout').onclick = logoutAction;
   const pageLabel = sections.find(([,path]) => path === location.pathname)?.[0] || title;
-  const initials = session.user.name.split(/\s+/).map(word => word[0]).slice(0,2).join('').toUpperCase();
+  const initials = candidateInitials(session.user.name);
   shell.querySelector('.topbar').innerHTML = `<div class="cw-breadcrumb"><button type="button" class="cw-menu" aria-label="Open navigation" aria-controls="candidate-navigation" aria-expanded="false">${candidateIcon('menu')}</button><span>Candidate</span><i>/</i><b>${candidateEscape(pageLabel)}</b></div><div class="cw-top-actions"><a href="/candidate/profile" data-link class="cw-find-jobs">${candidateIcon('profile')}<span>Complete profile</span></a><a href="/candidate/profile" data-link class="cw-top-avatar" aria-label="My profile">${candidateEscape(initials)}</a></div>`;
   const overlay = document.createElement('button');
   overlay.className = 'cw-nav-backdrop';

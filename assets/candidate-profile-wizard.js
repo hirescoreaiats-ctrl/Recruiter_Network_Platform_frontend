@@ -27,10 +27,10 @@ profilePage = async function () {
     ];
 
     layout(`<div class="candidate-job-portal cpw-page">
-      <header class="cpw-header"><div><span>AI TALENT PROFILE</span><h1>Build your complete candidate profile</h1><p>Five focused steps give HireScoreAI the structured evidence it needs to identify strong recruiter matches.</p></div><div class="cpw-progress-copy"><b id="cpw-progress-value">20%</b><small>Profile setup progress</small></div></header>
+      <header class="cpw-header"><div><span>AI TALENT PROFILE</span><h1>Build your complete candidate profile</h1><p>Five focused steps give HireScoreAI the structured evidence it needs to identify strong recruiter matches.</p></div><div class="cpw-progress-copy"><b id="cpw-progress-value">0%</b><small>Profile setup progress</small></div></header>
       <nav class="cpw-steps" aria-label="Profile creation progress">${steps.map(([title, copy], index) => `<button type="button" data-wizard-step="${index + 1}" class="${index === 0 ? 'active' : ''}"><span>${index + 1}</span><div><b>${title}</b><small>${copy}</small></div></button>`).join('')}</nav>
       <div class="cpw-layout"><main><form id="candidate-profile-wizard" novalidate>
-        <section class="cpw-panel active" data-step-panel="1"><header><span>01</span><div><h2>Identity & contact</h2><p>Information recruiters use to identify you and communicate securely.</p></div></header><div class="cpw-photo"><div class="cpw-photo-preview">${portalText(profile.full_name.split(/\s+/).map(word => word[0]).slice(0, 2).join('').toUpperCase())}</div><div><b>Profile picture</b><p>Add a clear, professional headshot. JPG, PNG or WebP up to 2 MB.</p><label><input id="wizard-picture" name="profile_picture" type="file" accept="image/jpeg,image/png,image/webp"><span>Choose photo</span></label><small id="wizard-picture-name">Your current photo will remain unless you choose a new one.</small></div></div><div class="cpw-fields">
+        <section class="cpw-panel active" data-step-panel="1"><header><span>01</span><div><h2>Identity & contact</h2><p>Information recruiters use to identify you and communicate securely.</p></div></header><div class="cpw-photo"><div class="cpw-photo-preview">${portalText(candidateInitials(profile.full_name))}</div><div><b>Profile picture</b><p>Add a clear, professional headshot. If you do not add one, your first and last name initials are shown.</p><label><input id="wizard-picture" name="profile_picture" type="file" accept="image/jpeg,image/png,image/webp"><span>Choose photo</span></label><small id="wizard-picture-name">JPG, PNG or WebP up to 2 MB.</small></div></div><div class="cpw-fields">
           <label><span>Full name *</span><input name="full_name" autocomplete="name" value="${portalText(profile.full_name)}" required></label>
           <label><span>Profile email *</span><input name="email" type="email" autocomplete="email" value="${portalText(profile.email)}" required></label>
           <label><span>Phone number *</span><input name="phone" type="tel" autocomplete="tel" value="${portalText(profile.phone)}" required></label>
@@ -73,21 +73,37 @@ profilePage = async function () {
     const progress = document.querySelector('#cpw-progress-value');
     const stepCopy = document.querySelector('#wizard-step-copy');
     let currentStep = 1;
+    let completedThrough = matchingStatus.profile_checks?.profile ? 5 : 0;
 
     const updateReview = () => {
       const data = new FormData(form);
       const rows = [['Name', data.get('full_name')], ['Current role', data.get('current_title')], ['Experience', `${data.get('total_experience') || 0} years`], ['Skills', data.get('skills')], ['Location', `${data.get('city')}, ${countryConfig[data.get('country')]?.name || data.get('country')}`], ['Target roles', data.get('extra_target_roles') || 'Not specified'], ['Availability', portalStatus(data.get('availability_status'))]];
       document.querySelector('#wizard-review').innerHTML = rows.map(([label, content]) => `<div><small>${portalText(label)}</small><b>${portalText(content)}</b></div>`).join('');
     };
+    const isStepReady = step => {
+      const fields = [...panels[step - 1].querySelectorAll('input, select, textarea')];
+      if (!fields.every(field => field.checkValidity())) return false;
+      return step !== 4 || Boolean(profile.resume_file_id || document.querySelector('#wizard-resume').files[0]);
+    };
+    const refreshStepState = () => {
+      stepButtons.forEach((button, index) => {
+        const step = index + 1;
+        button.classList.toggle('active', step === currentStep);
+        button.classList.toggle('complete', step <= completedThrough);
+        button.disabled = step > completedThrough + 1;
+        button.setAttribute('aria-disabled', String(button.disabled));
+      });
+      progress.textContent = `${completedThrough * 20}%`;
+      next.disabled = currentStep === 5 || !isStepReady(currentStep);
+    };
     const showStep = step => {
       currentStep = step;
       panels.forEach(panel => { panel.hidden = Number(panel.dataset.stepPanel) !== step; panel.classList.toggle('active', Number(panel.dataset.stepPanel) === step); });
-      stepButtons.forEach((button, index) => { button.classList.toggle('active', index + 1 === step); button.classList.toggle('complete', index + 1 < step); });
       back.hidden = step === 1;
       next.hidden = step === 5;
       submit.hidden = step !== 5;
-      progress.textContent = `${step * 20}%`;
       stepCopy.textContent = `Step ${step} of 5`;
+      refreshStepState();
       if (step === 5) updateReview();
       window.scrollTo({top: 0, behavior: 'smooth'});
     };
@@ -97,13 +113,21 @@ profilePage = async function () {
       if (step === 4 && !profile.resume_file_id && !document.querySelector('#wizard-resume').files[0]) { document.querySelector('#wizard-file-error').textContent = 'Upload a resume before continuing.'; return false; }
       return true;
     };
-    next.onclick = () => { if (validateStep(currentStep)) showStep(currentStep + 1); };
+    next.onclick = () => {
+      if (!validateStep(currentStep)) return;
+      completedThrough = Math.max(completedThrough, currentStep);
+      showStep(currentStep + 1);
+    };
     back.onclick = () => showStep(currentStep - 1);
     stepButtons.forEach(button => button.onclick = () => {
       const target = Number(button.dataset.wizardStep);
-      if (target <= currentStep) showStep(target);
-      else if (validateStep(currentStep)) showStep(currentStep + 1);
+      if (target <= completedThrough + 1) showStep(target);
     });
+    form.addEventListener('input', () => {
+      if (currentStep <= completedThrough && !isStepReady(currentStep)) completedThrough = currentStep - 1;
+      refreshStepState();
+    });
+    form.addEventListener('change', refreshStepState);
 
     const country = document.querySelector('#wizard-country');
     const requireMarketFields = () => document.querySelectorAll('#wizard-country-fields input, #wizard-country-fields select').forEach(field => field.required = true);
@@ -122,6 +146,7 @@ profilePage = async function () {
       document.querySelector('#wizard-file-error').textContent = error || '';
       document.querySelector('#wizard-file-name').textContent = file && !error ? `${file.name} · ${candidateFileSize(file.size)}` : 'No valid new file selected';
       if (error) resumeInput.value = '';
+      refreshStepState();
     };
     const pictureInput = document.querySelector('#wizard-picture');
     pictureInput.onchange = () => {
@@ -138,6 +163,12 @@ profilePage = async function () {
         preview.classList.add('has-photo');
       }
     };
+    const nameInput = form.elements.full_name;
+    nameInput.addEventListener('input', () => {
+      const preview = document.querySelector('.cpw-photo-preview');
+      if (!preview.classList.contains('has-photo') && !pictureInput.files[0]) preview.textContent = candidateInitials(nameInput.value);
+    });
+    refreshStepState();
 
     form.onsubmit = async event => {
       event.preventDefault();
