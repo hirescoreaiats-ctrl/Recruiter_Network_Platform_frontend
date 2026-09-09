@@ -12,6 +12,8 @@ profilePage = async function () {
     const maxBytes = profile.max_resume_bytes || 5 * 1024 * 1024;
     const maxPictureBytes = 2 * 1024 * 1024;
     const resumeName = profile.resume_file?.original_name || 'Current resume';
+    const initialCareerStage = details.career_stage || (Number(profile.total_experience) === 0 ? 'fresher' : 'experienced');
+    const initialSkills = [...new Map(portalList(profile.skills).map(skill => [String(skill).trim().toLocaleLowerCase(), String(skill).trim()])).values()].filter(Boolean);
     const value = key => portalText(details[key] || '');
     const availabilityOptions = [
       ['actively_looking', 'Actively looking', 'Consider me for relevant opportunities now'],
@@ -38,13 +40,14 @@ profilePage = async function () {
         </div><div class="cpw-tip">${candidateIcon('lock')}<p><b>Protected contact details</b><small>Your contact information stays connected to your authenticated candidate profile.</small></p></div></section>
 
         <section class="cpw-panel" data-step-panel="2" hidden><header><span>02</span><div><h2>Career evidence</h2><p>Give the matching engine enough context to understand your professional depth.</p></div></header><div class="cpw-fields">
-          <label><span>Current job title *</span><input name="current_title" value="${portalText(profile.current_title)}" required placeholder="e.g. Data Analyst"></label>
-          <label><span>Total experience (years) *</span><input name="total_experience" type="number" min="0" max="60" step=".5" value="${profile.total_experience}" required></label>
-          <label><span>Current employer</span><input name="current_employer" value="${portalText(profile.current_employer || '')}" placeholder="Company name"></label>
-          <label><span>Highest qualification</span><select name="extra_highest_qualification"><option value="">Select qualification</option>${['High School','Diploma','Bachelor’s degree','Master’s degree','Doctorate','Professional certification'].map(item => `<option ${details.highest_qualification === item ? 'selected' : ''}>${item}</option>`).join('')}</select></label>
-          <label class="wide"><span>Key skills *</span><input name="skills" value="${portalText(portalList(profile.skills).join(', '))}" required placeholder="SQL, Power BI, Python, Excel"><small>Separate skills with commas and list your strongest skills first.</small></label>
-          <label><span>Education specialization</span><input name="extra_education_specialization" value="${value('education_specialization')}" placeholder="Computer Science, Finance, Marketing"></label>
-          <label><span>Graduation year</span><input name="extra_graduation_year" type="number" min="1950" max="2100" value="${value('graduation_year')}" placeholder="2022"></label>
+          <label><span>Career stage *</span><select name="extra_career_stage" id="wizard-career-stage" required><option value="experienced" ${initialCareerStage === 'experienced' ? 'selected' : ''}>Experienced professional</option><option value="fresher" ${initialCareerStage === 'fresher' ? 'selected' : ''}>Fresher / first job</option></select><small>Freshers are never asked for a company name.</small></label>
+          <label><span id="wizard-title-label">${initialCareerStage === 'fresher' ? 'Target job title' : 'Current job title'} *</span><input name="current_title" value="${portalText(profile.current_title)}" required placeholder="e.g. Data Analyst"></label>
+          <label><span>Total experience (years) *</span><input name="total_experience" id="wizard-experience" type="number" min="0" max="60" step=".5" value="${profile.total_experience}" required></label>
+          <label id="wizard-employer-field"><span>Current or most recent employer *</span><input name="current_employer" id="wizard-employer" value="${portalText(profile.current_employer || '')}" placeholder="Company name"></label>
+          <label><span>Highest qualification *</span><select name="extra_highest_qualification" required><option value="">Select qualification</option>${['High School','Diploma','Bachelor’s degree','Master’s degree','Doctorate','Professional certification'].map(item => `<option ${details.highest_qualification === item ? 'selected' : ''}>${item}</option>`).join('')}</select></label>
+          <div class="field wide"><label for="wizard-skill-entry">Key skills * <em>Minimum 3</em></label><div class="cpw-skill-editor" id="wizard-skill-editor"><div id="wizard-skill-tags"></div><input id="wizard-skill-entry" type="text" maxlength="60" autocomplete="off" placeholder="Type one skill and press Enter"></div><input id="wizard-skills" name="skills" type="hidden" value="${portalText(initialSkills.join(','))}"><small id="wizard-skill-help">Add at least 3 relevant skills so AI can discover your profile for suitable requirements.</small></div>
+          <label><span>Education specialization <i id="wizard-specialization-required"></i></span><input name="extra_education_specialization" id="wizard-specialization" value="${value('education_specialization')}" placeholder="Computer Science, Finance, Marketing"></label>
+          <label><span>Graduation year <i id="wizard-graduation-required"></i></span><input name="extra_graduation_year" id="wizard-graduation-year" type="number" min="1950" max="2100" value="${value('graduation_year')}" placeholder="2022"></label>
           <label class="wide"><span>Professional summary</span><textarea name="extra_professional_summary" maxlength="1200" placeholder="Summarize your expertise, key achievements and the problems you solve.">${value('professional_summary')}</textarea><small>Use 3–5 clear sentences. Specific tools, industries and outcomes improve matching.</small></label>
         </div></section>
 
@@ -129,6 +132,59 @@ profilePage = async function () {
     });
     form.addEventListener('change', refreshStepState);
 
+    let skills = [...initialSkills];
+    const skillEntry = document.querySelector('#wizard-skill-entry');
+    const skillTags = document.querySelector('#wizard-skill-tags');
+    const skillsValue = document.querySelector('#wizard-skills');
+    const skillHelp = document.querySelector('#wizard-skill-help');
+    const renderSkills = () => {
+      skillTags.innerHTML = skills.map((skill, index) => `<span>${portalText(skill)}<button type="button" data-remove-skill="${index}" aria-label="Remove ${portalText(skill)}">×</button></span>`).join('');
+      skillsValue.value = skills.join(',');
+      skillEntry.setCustomValidity(skills.length >= 3 ? '' : 'Add at least 3 distinct skills');
+      skillHelp.textContent = skills.length >= 3 ? `${skills.length} skills added. Add more specific skills to improve matching.` : `${skills.length}/3 skills added. Add ${3 - skills.length} more to make your profile discoverable.`;
+      skillHelp.classList.toggle('ready', skills.length >= 3);
+      skillTags.querySelectorAll('[data-remove-skill]').forEach(button => button.onclick = () => {
+        skills.splice(Number(button.dataset.removeSkill), 1);
+        renderSkills(); refreshStepState(); skillEntry.focus();
+      });
+    };
+    const addSkill = () => {
+      const skill = skillEntry.value.trim().replace(/\s+/g, ' ');
+      if (!skill) return;
+      if (skills.some(existing => existing.toLocaleLowerCase() === skill.toLocaleLowerCase())) {
+        skillEntry.value = ''; skillHelp.textContent = 'That skill is already added.'; return;
+      }
+      skills.push(skill); skillEntry.value = ''; renderSkills(); refreshStepState();
+    };
+    skillEntry.onkeydown = event => {
+      if (event.key === 'Enter') { event.preventDefault(); addSkill(); }
+    };
+    renderSkills();
+
+    const careerStage = document.querySelector('#wizard-career-stage');
+    const experience = document.querySelector('#wizard-experience');
+    const employer = document.querySelector('#wizard-employer');
+    const employerField = document.querySelector('#wizard-employer-field');
+    const specialization = document.querySelector('#wizard-specialization');
+    const graduationYear = document.querySelector('#wizard-graduation-year');
+    const syncCareerStage = () => {
+      const fresher = careerStage.value === 'fresher';
+      document.querySelector('#wizard-title-label').textContent = `${fresher ? 'Target job title' : 'Current job title'} *`;
+      experience.readOnly = fresher;
+      if (fresher) experience.value = '0';
+      employer.disabled = fresher;
+      employer.required = !fresher;
+      employerField.classList.toggle('cpw-not-applicable', fresher);
+      employerField.querySelector('span').textContent = fresher ? 'Current employer — not required for freshers' : 'Current or most recent employer *';
+      specialization.required = fresher;
+      graduationYear.required = fresher;
+      document.querySelector('#wizard-specialization-required').textContent = fresher ? '*' : '(optional)';
+      document.querySelector('#wizard-graduation-required').textContent = fresher ? '*' : '(optional)';
+      refreshStepState();
+    };
+    careerStage.onchange = syncCareerStage;
+    syncCareerStage();
+
     const country = document.querySelector('#wizard-country');
     const requireMarketFields = () => document.querySelectorAll('#wizard-country-fields input, #wizard-country-fields select').forEach(field => field.required = true);
     country.onchange = () => {
@@ -175,7 +231,7 @@ profilePage = async function () {
       if (currentStep !== 5) { if (validateStep(currentStep)) showStep(currentStep + 1); return; }
       if (!validateStep(5)) return;
       const data = new FormData(form);
-      const body = {full_name: data.get('full_name').trim(), email: data.get('email').trim(), phone: data.get('phone').trim(), country: data.get('country'), city: data.get('city').trim(), current_title: data.get('current_title').trim(), total_experience: Number(data.get('total_experience')), skills: data.get('skills').split(',').map(item => item.trim()).filter(Boolean), linkedin_url: data.get('linkedin_url') || null, current_employer: data.get('current_employer') || null, country_specific_data: {}};
+      const body = {full_name: data.get('full_name').trim(), email: data.get('email').trim(), phone: data.get('phone').trim(), country: data.get('country'), city: data.get('city').trim(), current_title: data.get('current_title').trim(), total_experience: Number(data.get('total_experience')), skills, linkedin_url: data.get('linkedin_url') || null, current_employer: data.get('current_employer') || null, country_specific_data: {}};
       for (const [key, item] of data) if (key.startsWith('extra_')) body.country_specific_data[key.slice(6)] = item;
       submit.disabled = true; submit.textContent = 'Saving profile…';
       try {
