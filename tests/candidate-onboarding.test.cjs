@@ -39,6 +39,8 @@ test('profile overview escapes saved text',async()=>{
 test('entry page loads the resumable five-step flow after registration overrides',()=>{
   const html=readFileSync('index.html','utf8');
   const onboarding=readFileSync('assets/career-profile.js','utf8');
+  const registration=readFileSync('assets/account-onboarding.js','utf8');
+  const apiClient=readFileSync('assets/app.js','utf8');
   assert.ok(html.indexOf('/assets/career-profile.js') > html.indexOf('/assets/account-onboarding.js'));
   assert.doesNotMatch(html,/src="\/assets\/candidate-profile-wizard.js/);
   assert.match(onboarding,/Complete these five guided steps/);
@@ -46,4 +48,8 @@ test('entry page loads the resumable five-step flow after registration overrides
   assert.match(onboarding,/resumeStep - 1/);
   assert.match(onboarding,/localStorage\.setItem\(draftKey/);
   assert.match(onboarding,/Progress saved on this device/);
+  assert.match(registration,/five guided steps/);
+  assert.match(registration,/Profile setup pending/);
+  assert.match(registration,/Mobile verification will be available after the server update/);
+  assert.match(apiClient,/Request failed \(\$\{r\.status\}\)/);
 });

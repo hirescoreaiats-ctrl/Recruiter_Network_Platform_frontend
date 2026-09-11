@@ -206,6 +206,8 @@ profilePage = async function() {
       const control = form.elements.namedItem(key);
       if (control && typeof value !== 'object') control.value = value ?? '';
     }
+    for (const key of ['city', 'current_title']) if (form.elements[key]?.value === 'Profile setup pending') form.elements[key].value = '';
+    if (form.elements.skills?.value === 'Profile setup pending') form.elements.skills.value = '';
     const field = ([key, label, type = 'text', required = false], value = '', prefix = 'extra_') => {
       const id = `career-${prefix}${key}`;
       const attrs = `id="${esc(id)}" name="${esc(prefix + key)}" ${required ? 'required' : ''}`;
