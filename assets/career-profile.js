@@ -194,7 +194,11 @@ profilePage = async function() {
   try {
     const profile = await api('/candidate/profile');
     const stored = profile.country_specific_data || {};
-    const draft = stored._onboarding_draft || {};
+    const draftKey = `candidate_onboarding_draft_${profile.user_id}`;
+    let localDraft = {};
+    try { localDraft = JSON.parse(localStorage.getItem(draftKey) || '{}'); } catch (_) { localStorage.removeItem(draftKey); }
+    const serverStep = Number(stored.onboarding_step) || 0;
+    const draft = Number(localDraft.step) >= serverStep ? localDraft : (stored._onboarding_draft || localDraft);
     const saved = {...stored, ...(draft.country_specific_data || {})};
     const matchingStatus = await api('/candidate/matching-status');
     const esc = candidateEscape;
@@ -259,7 +263,7 @@ profilePage = async function() {
     const editing = location.pathname === '/candidate/profile/edit';
     const sectionSteps = {headline:1, skills:1, 'it-skills':1, summary:1, education:2, employment:3, projects:3, career:4, personal:4, accomplishments:4, diversity:4};
     const requestedSection = location.hash.replace('#', '');
-    const resumeStep = Number(stored.onboarding_step);
+    const resumeStep = Math.max(serverStep, Number(localDraft.step) || 0);
     const wizard = setupCareerWizard(form, host, editing ? (sectionSteps[requestedSection] ?? 0) : (Number.isInteger(resumeStep) ? resumeStep - 1 : 0));
     const builder = form.closest('.profile-builder');
     builder.classList.add('candidate-onboarding-builder');
@@ -292,12 +296,20 @@ profilePage = async function() {
       });
       return {profile:profileData, country_specific_data:countryData};
     };
+    let serverDraftAvailable = true;
     const saveDraft = async destinationIndex => {
       if (editing) return true;
+      const payload = {step:destinationIndex + 1, ...collectDraft()};
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+      if (!serverDraftAvailable) return true;
       try {
-        await api('/candidate/onboarding/draft', {method:'PUT', body:JSON.stringify({step:destinationIndex + 1, ...collectDraft()})});
+        await api('/candidate/onboarding/draft', {method:'PUT', body:JSON.stringify(payload)});
         return true;
-      } catch (error) { toast('Progress could not be saved: ' + error.message, true); return false; }
+      } catch (error) {
+        if (error.message === 'Method Not Allowed' || error.message === 'Not Found') serverDraftAvailable = false;
+        toast('Progress saved on this device. Server sync will resume when available.');
+        return true;
+      }
     };
     wizard.setOnAdvance(saveDraft);
     let autosaveTimer;
@@ -353,7 +365,7 @@ profilePage = async function() {
           const upload = new FormData(); upload.append('file', resume);
           await api(`/candidates/${profile.id}/resume`, {method:'POST',body:upload});
         }
-        await api('/candidate/profile',{method:'PUT',body:JSON.stringify(body)}); toast('Career profile saved'); route('/candidate/profile'); }
+        await api('/candidate/profile',{method:'PUT',body:JSON.stringify(body)}); localStorage.removeItem(draftKey); toast('Career profile saved'); route('/candidate/profile'); }
       catch(error) { toast(error.message,true); }
       finally {button.disabled=false;button.textContent=original;}
     };

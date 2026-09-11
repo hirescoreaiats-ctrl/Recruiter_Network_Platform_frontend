@@ -44,4 +44,6 @@ test('entry page loads the resumable five-step flow after registration overrides
   assert.match(onboarding,/Complete these five guided steps/);
   assert.match(onboarding,/\/candidate\/onboarding\/draft/);
   assert.match(onboarding,/resumeStep - 1/);
+  assert.match(onboarding,/localStorage\.setItem\(draftKey/);
+  assert.match(onboarding,/Progress saved on this device/);
 });
