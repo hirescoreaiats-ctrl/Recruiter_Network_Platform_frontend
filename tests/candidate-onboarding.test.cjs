@@ -36,8 +36,12 @@ test('profile overview escapes saved text',async()=>{
   const {context,state,profile}=setup(); profile.full_name='<script>alert(1)</script>';
   await context.profilePage(); assert.doesNotMatch(state.html,/<script>/);
 });
-test('entry page loads the six-step flow after registration overrides',()=>{
+test('entry page loads the resumable five-step flow after registration overrides',()=>{
   const html=readFileSync('index.html','utf8');
+  const onboarding=readFileSync('assets/career-profile.js','utf8');
   assert.ok(html.indexOf('/assets/career-profile.js') > html.indexOf('/assets/account-onboarding.js'));
   assert.doesNotMatch(html,/src="\/assets\/candidate-profile-wizard.js/);
+  assert.match(onboarding,/Complete these five guided steps/);
+  assert.match(onboarding,/\/candidate\/onboarding\/draft/);
+  assert.match(onboarding,/resumeStep - 1/);
 });
