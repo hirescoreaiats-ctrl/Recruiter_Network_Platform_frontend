@@ -308,7 +308,7 @@ profilePage = async function() {
         await api('/candidate/onboarding/draft', {method:'PUT', body:JSON.stringify(payload)});
         return true;
       } catch (error) {
-        if (error.message === 'Method Not Allowed' || error.message === 'Not Found') serverDraftAvailable = false;
+        if (['Method Not Allowed', 'Not Found', 'Verify your mobile number before saving profile setup'].includes(error.message)) serverDraftAvailable = false;
         toast('Progress saved on this device. Server sync will resume when available.');
         return true;
       }
@@ -377,7 +377,6 @@ profilePage = async function() {
 const careerProfileRender = render;
 render = async function() {
   if (session?.user?.role === 'candidate') {
-    if (session.user.phone_verified === false) return careerProfileRender();
     const path = location.pathname;
     if (path.startsWith('/candidate/onboarding')) return profilePage();
     if (path === '/candidate/profile/edit') return profilePage();

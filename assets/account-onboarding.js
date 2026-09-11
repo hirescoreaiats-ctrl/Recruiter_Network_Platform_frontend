@@ -81,16 +81,7 @@ function candidateRegistrationPage() {
           await api(`/candidates/${profile.id}/resume`, {method: 'POST', body: upload});
         } catch (uploadError) { toast('Account created, but resume upload failed: ' + uploadError.message, true); }
       }
-      let delivery;
-      try { delivery = await api('/auth/mobile-otp/send', {method: 'POST'}); }
-      catch (otpError) {
-        if (['Method Not Allowed', 'Not Found'].includes(otpError.message)) {
-          toast('Account created. Mobile verification will be available after the server update.');
-          route('/candidate/onboarding'); return;
-        }
-        candidateVerificationPage(values.name, '+91 ' + values.phone, values.career_stage, null, otpError.message); return;
-      }
-      candidateVerificationPage(values.name, '+91 ' + values.phone, values.career_stage, delivery);
+      route('/candidate/onboarding');
     } catch (error) { showAccountError(error.message); button.disabled = false; button.textContent = 'Register now'; }
   };
 }
@@ -419,8 +410,7 @@ const priorLayout = layout;
 layout = function(...args) { const result = priorLayout(...args); applyProductAccess(); return result; };
 const accountOnboardingRender = render;
 render = function() {
-  if (session?.user?.role === 'candidate' && session.user.phone_verified === false && location.pathname !== '/candidate/verify-mobile') return route('/candidate/verify-mobile');
-  if (session?.user?.role === 'candidate' && location.pathname === '/candidate/verify-mobile') return restoreCandidateVerificationPage();
+  if (session?.user?.role === 'candidate' && location.pathname === '/candidate/verify-mobile') return route('/candidate/onboarding');
   if (session?.user?.role === 'candidate' && location.pathname === '/candidate/onboarding/employment') return candidateEmploymentPage();
   if (session?.user?.role === 'candidate' && location.pathname === '/candidate/onboarding/education') return candidateEducationPage();
   if (session?.user?.role === 'candidate' && location.pathname === '/candidate/onboarding/preferences') return candidatePreferencesPage();

@@ -50,6 +50,8 @@ test('entry page loads the resumable five-step flow after registration overrides
   assert.match(onboarding,/Progress saved on this device/);
   assert.match(registration,/five guided steps/);
   assert.match(registration,/Profile setup pending/);
-  assert.match(registration,/Mobile verification will be available after the server update/);
+  assert.match(registration,/route\('\/candidate\/onboarding'\)/);
+  assert.doesNotMatch(registration,/phone_verified === false/);
+  assert.doesNotMatch(onboarding,/phone_verified === false/);
   assert.match(apiClient,/Request failed \(\$\{r\.status\}\)/);
 });
