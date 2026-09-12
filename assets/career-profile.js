@@ -61,7 +61,7 @@ function setupCareerSkillChips(form) {
 }
 
 /* Only the current step is shown; all controls remain mounted to preserve edits. */
-function setupCareerWizard(form, host, initialStep = 0) {
+function setupCareerWizard(form, host, initialStep = 0, editSection = null) {
   form.noValidate = true;
   form.classList.add('career-wizard');
   const skillChips = setupCareerSkillChips(form);
@@ -77,17 +77,57 @@ function setupCareerWizard(form, host, initialStep = 0) {
     ['Employment & projects', [section('work_experiences'), section('projects')]],
     ['Preferences, resume & personal details', [base[2], section('preferences'), section('personal'), section('languages'), section('accomplishments')]]
   ];
-  const steps = groups.map(([, cards]) => {
+  let steps = groups.map(([, cards]) => {
     const group = document.createElement('div');
     group.className = 'career-step'; group.append(...cards); host.append(group); return group;
   });
-  const titles = groups.map(([title]) => title);
+  if (editSection) {
+    const selected = document.createElement('section');
+    selected.className = 'profile-form-card';
+    const labels = {contact:'Contact & work details', resume:'Resume', identity:'Basic details', headline:'Resume headline', skills:'Key skills', summary:'Profile summary', career:'Career profile', personal:'Personal details', diversity:'Diversity & inclusion'};
+    selected.innerHTML = `<header><h2>${labels[editSection] || 'Edit profile'}</h2></header><div class="profile-form-grid"></div>`;
+    const grid = selected.querySelector('.profile-form-grid');
+    const moveFields = names => names.forEach(name => {
+      const control = form.elements[name];
+      if (control) grid.append(control.closest('.field'));
+    });
+    const groups = {employment:'work_experiences', education:'education_history', 'it-skills':'it_skills', projects:'projects', accomplishments:'accomplishments'};
+    if (editSection === 'resume') grid.append(document.getElementById('onboarding-resume').closest('.field'));
+    else if (groups[editSection]) selected.append(section(groups[editSection]));
+    else if (editSection === 'career') {
+      selected.append(section('preferences'));
+      moveFields(['extra_expected_ctc', 'extra_expected_rate', 'extra_work_mode_preference']);
+    } else if (editSection === 'personal') {
+      selected.append(section('personal'), section('languages'));
+    } else {
+      const fields = {identity:['full_name','email','phone','linkedin_url','city','current_title','total_experience','current_employer','extra_current_ctc'], headline:['extra_resume_headline'], skills:['skills'], summary:['extra_profile_summary'], diversity:['extra_disability']};
+      moveFields(fields[editSection] || fields.identity);
+      if (['identity','contact'].includes(editSection)) grid.append(document.getElementById('career-picture').closest('.field'));
+    }
+    // Keep other controls mounted for existing handlers, but exclude them from validation and saving.
+    steps.forEach(step => { if (!selected.contains(step)) step.hidden = true; });
+    host.append(selected);
+    selected.dataset.profileEditor = 'true';
+    for (const control of form.querySelectorAll('input,select,textarea')) control.disabled = !selected.contains(control);
+    steps = [selected];
+    initialStep = 0;
+    const hero = document.querySelector('.profile-hero');
+    hero.querySelector('h1').textContent = 'Edit ' + (labels[editSection] || groups[editSection]?.replaceAll('_', ' ') || 'profile').toLowerCase();
+    hero.querySelector('p').textContent = 'Save your changes to return to your profile.';
+    document.querySelector('[data-profile-dashboard]').onclick = () => route('/candidate/profile');
+  }
+  const titles = editSection ? [steps[0].querySelector('h2').textContent] : groups.map(([title]) => title);
   const progress = document.createElement('div');
   progress.className = 'career-progress';
   progress.innerHTML = '<p data-step-status role="status" aria-live="polite"></p><progress aria-label="Profile setup progress"></progress><p data-step-help></p>';
   form.prepend(progress);
+  progress.hidden = Boolean(editSection);
   const bar = form.querySelector('.profile-save-bar');
   bar.innerHTML = '<button type="button" class="btn btn-secondary" data-career-back>← Back</button><span class="career-save-note">Your progress is saved after every step.</span><button type="button" class="btn btn-primary" data-career-next>Save & continue →</button><button type="submit" class="btn btn-primary" data-career-save>Complete profile</button>';
+  if (editSection) {
+    bar.querySelector('.career-save-note').textContent = 'Save changes to return to your profile.';
+    bar.querySelector('[data-career-save]').textContent = 'Save changes';
+  }
   const back = bar.querySelector('[data-career-back]'), next = bar.querySelector('[data-career-next]'), save = bar.querySelector('[data-career-save]');
   let current = 0;
   function show(index, focus = true) {
@@ -96,7 +136,8 @@ function setupCareerWizard(form, host, initialStep = 0) {
     progress.querySelector('[data-step-status]').textContent = `Step ${index + 1} of ${steps.length} · ${titles[index]}`;
     const meter = progress.querySelector('progress'); meter.max = steps.length; meter.value = index + 1;
     progress.querySelector('[data-step-help]').textContent = index === steps.length - 1 ? 'Last step. Add any optional details, then save your profile.' : 'Complete this section, then continue. You can go back to edit your answers.';
-    back.disabled = index === 0;
+    back.disabled = !editSection && index === 0;
+    if (editSection) back.textContent = 'Cancel';
     next.hidden = index === steps.length - 1;
     save.hidden = index !== steps.length - 1;
     if (focus) { const heading = steps[index].querySelector('h2'); heading.tabIndex = -1; heading.focus({preventScroll:true}); progress.scrollIntoView({block:'start',behavior:'smooth'}); }
@@ -130,7 +171,7 @@ function setupCareerWizard(form, host, initialStep = 0) {
     try { if (await onAdvance(current + 1)) show(current + 1); }
     finally { next.disabled = false; next.textContent = 'Save & continue →'; }
   };
-  back.onclick = () => show(current - 1);
+  back.onclick = () => editSection ? route('/candidate/profile') : show(current - 1);
   next.onclick = advance;
   form.addEventListener('input', event => event.target.setCustomValidity?.(''));
   show(Math.min(Math.max(initialStep, 0), steps.length - 1), false);
@@ -173,10 +214,10 @@ function renderCandidateProfileOverview(profile) {
     ['personal','Personal details',`<div class="candidate-profile-details">${[['Gender',saved.gender],['Date of birth',saved.date_of_birth],['Marital status',saved.marital_status],['Work permit',saved.work_permit],['Address',saved.address],['Languages',languages.map(item=>[item.language,item.proficiency,item.abilities].filter(Boolean).join(' · ')).join(', ')],['Postal code',saved.postal_code],['Career break',saved.career_break],['Portfolio',saved.portfolio_url]].map(([label,value])=>`<div><small>${label}</small><b>${esc(value||'Add '+label.toLowerCase())}</b></div>`).join('')}</div>`],
     ['diversity','Diversity & inclusion',saved.disability ? `<p>Disability status: ${esc(saved.disability)}</p>` : add('Add disability status')]
   ];
-  layout(`<div class="candidate-profile-overview"><section class="candidate-profile-hero"><div class="candidate-profile-avatar">${initials}</div><div><span class="candidate-profile-completion">${completion}%</span><h1>${esc(profile.full_name)} ${edit}</h1><small>Profile last updated · ${updated}</small><div class="candidate-profile-meta"><span>⌖ ${esc(profile.city||'Add location')}, ${esc(countryConfig[profile.country]?.name || profile.country)}</span><span>◷ ${profile.total_experience?`${Math.floor(profile.total_experience)} Years ${Math.round(profile.total_experience%1*12)} Months`:'Add experience'}</span><span>₹ ${saved.current_ctc?salary(saved.current_ctc):'Add salary'}</span><span>☎ ${esc(profile.phone)}</span><span>✉ ${esc(profile.email)}</span></div></div><button class="btn btn-primary" data-profile-edit>Edit profile</button></section><div class="candidate-profile-columns"><aside><section class="candidate-quick-links"><h2>Quick links</h2>${sections.map(([id,title])=>`<a href="#profile-${id}">${title}</a>`).join('')}</section><section class="candidate-profile-promo"><span>PRO</span><h3>Power up your profile</h3><p>Complete every section to improve recruiter visibility.</p></section></aside><main>${sections.map(([id,title,body])=>`<section id="profile-${id}" class="candidate-profile-section"><header><h2>${title}</h2>${edit}</header>${body}</section>`).join('')}</main></div></div>`,'My Profile');
+  layout(`<div class="candidate-profile-overview"><section class="candidate-profile-hero"><div class="candidate-profile-avatar">${initials}</div><div><span class="candidate-profile-completion">${completion}%</span><h1>${esc(profile.full_name)} ${edit}</h1><small>Profile last updated · ${updated}</small><div class="candidate-profile-meta"><span>⌖ ${esc(profile.city||'Add location')}, ${esc(countryConfig[profile.country]?.name || profile.country)}</span><span>◷ ${profile.total_experience?`${Math.floor(profile.total_experience)} Years ${Math.round(profile.total_experience%1*12)} Months`:'Add experience'}</span><span>₹ ${saved.current_ctc?salary(saved.current_ctc):'Add salary'}</span><span>☎ ${esc(profile.phone)}</span><span>✉ ${esc(profile.email)}</span></div></div><button class="btn btn-primary" data-profile-edit>Edit profile</button></section><div class="candidate-profile-columns"><aside><section class="candidate-quick-links"><h2>Quick links</h2>${sections.map(([id,title])=>`<a href="#profile-${id}">${title}</a>`).join('')}</section></aside><main>${sections.map(([id,title,body])=>`<section id="profile-${id}" class="candidate-profile-section"><header><h2>${title}</h2>${edit}</header>${body}</section>`).join('')}</main></div></div>`,'My Profile');
   document.querySelectorAll('[data-profile-edit]').forEach(button=>button.onclick=()=>{
     const section = button.closest('.candidate-profile-section')?.id.replace('profile-', '') || '';
-    route(section === 'resume' ? '/candidate/resume' : '/candidate/profile/edit' + (section ? '#' + section : ''));
+    route('/candidate/profile/edit#' + (section || 'identity'));
   });
   wireDownloads();
 }
@@ -187,6 +228,7 @@ profilePage = async function() {
       return renderCandidateProfileOverview(overviewProfile);
     } catch (error) { toast(error.message,true); return; }
   }
+  const editing = location.pathname === '/candidate/profile/edit';
   await careerBaseProfilePage();
   if (session?.user.role !== 'candidate') return;
   const form = document.querySelector('#candidate-profile-form');
@@ -198,7 +240,7 @@ profilePage = async function() {
     let localDraft = {};
     try { localDraft = JSON.parse(localStorage.getItem(draftKey) || '{}'); } catch (_) { localStorage.removeItem(draftKey); }
     const serverStep = Number(stored.onboarding_step) || 0;
-    const draft = Number(localDraft.step) >= serverStep ? localDraft : (stored._onboarding_draft || localDraft);
+    const draft = editing ? {} : (Number(localDraft.step) >= serverStep ? localDraft : (stored._onboarding_draft || localDraft));
     const saved = {...stored, ...(draft.country_specific_data || {})};
     const matchingStatus = await api('/candidate/matching-status');
     const esc = candidateEscape;
@@ -262,15 +304,13 @@ profilePage = async function() {
     if (!stage.value) stage.value = profile.total_experience > 0 ? 'experienced' : 'fresher';
     const updateStage = () => { form.elements.current_title.previousElementSibling.textContent = stage.value === 'fresher' ? 'Target job title *' : 'Current job title *'; const employer = form.elements.current_employer; employer.disabled = stage.value === 'fresher'; employer.closest('.field').hidden = employer.disabled; const input = form.elements.total_experience; input.readOnly = stage.value === 'fresher'; if (input.readOnly) input.value = '0'; };
     stage.onchange = updateStage; updateStage();
-    const editing = location.pathname === '/candidate/profile/edit';
-    const sectionSteps = {headline:1, skills:1, 'it-skills':1, summary:1, education:2, employment:3, projects:3, career:4, personal:4, accomplishments:4, diversity:4};
-    const requestedSection = location.hash.replace('#', '');
+    const requestedSection = location.hash.replace('#', '') || 'identity';
     const resumeStep = Math.max(serverStep, Number(localDraft.step) || 0);
-    const wizard = setupCareerWizard(form, host, editing ? (sectionSteps[requestedSection] ?? 0) : (Number.isInteger(resumeStep) ? resumeStep - 1 : 0));
+    const wizard = setupCareerWizard(form, host, Number.isInteger(resumeStep) ? resumeStep - 1 : 0, editing ? requestedSection : null);
     const builder = form.closest('.profile-builder');
     builder.classList.add('candidate-onboarding-builder');
-    builder.querySelector('.profile-hero h1').textContent = editing ? 'Edit your profile' : 'Let’s build your profile';
-    builder.querySelector('.profile-hero p').textContent = 'Complete these five guided steps. Your progress is saved automatically, so you can continue after your next login.';
+    if (!editing) builder.querySelector('.profile-hero h1').textContent = 'Let’s build your profile';
+    builder.querySelector('.profile-hero p').textContent = editing ? 'Save your changes to return to your profile.' : 'Complete these five guided steps. Your progress is saved automatically, so you can continue after your next login.';
     if (!editing) {
       const page = document.createElement('div'); page.className = 'candidate-register-page';
       page.innerHTML = '<header class="candidate-register-header"><a class="candidate-register-brand"><span>H</span>HireScoreAI</a><p>Candidate profile setup</p></header>';
@@ -331,6 +371,7 @@ profilePage = async function() {
       const f = new FormData(form), data = {...saved};
       for (const [key,value] of f) if (key.startsWith('extra_')) data[key.slice(6)] = value.trim();
       for (const [key,,fields] of collections) {
+        if (editing && !host.querySelector('[data-profile-editor]').contains(host.querySelector(`[data-records="${key}"]`))) continue;
         data[key] = [...host.querySelector(`[data-records="${key}"]`).children].map(row => {
           const record = JSON.parse(row.dataset.original);
           fields.forEach(([name],index)=>{record[name]=row.querySelectorAll('input,select,textarea')[index].value.trim();});
@@ -341,16 +382,18 @@ profilePage = async function() {
           if (record.start_date && record.end_date && record.end_date < record.start_date || record.start_year && record.end_year && Number(record.end_year) < Number(record.start_year)) { toast('End date must be after the start date.',true); return; }
         }
       }
-      if (!data.education_history.length) { toast('Add at least one education record.',true); return; }
-      data.preferred_locations = String(data.preferred_locations || '').split(',').map(value => value.trim()).filter(Boolean);
-      data.education_specialization = data.education_history[0].specialization;
-      data.graduation_year = data.education_history[0].end_year;
+      if (!editing && !data.education_history.length) { toast('Add at least one education record.',true); return; }
+      if (f.has('extra_preferred_locations')) data.preferred_locations = String(f.get('extra_preferred_locations')).split(',').map(value => value.trim()).filter(Boolean);
+      if ((!editing || requestedSection === 'education') && data.education_history?.length) {
+        data.education_specialization = data.education_history[0].specialization;
+        data.graduation_year = data.education_history[0].end_year;
+      }
       delete data._onboarding_draft;
       data.onboarding_step = 'complete';
       const body = {country_specific_data:data};
-      ['full_name','email','phone','country','city','current_title','linkedin_url','current_employer'].forEach(key=>body[key]=String(f.get(key)||'').trim());
-      body.total_experience = Number(f.get('total_experience'));
-      body.skills = [...new Set(String(f.get('skills')).split(',').map(x=>x.trim()).filter(Boolean))];
+      ['full_name','email','phone','country','city','current_title','linkedin_url','current_employer'].forEach(key=>body[key]=f.has(key) ? String(f.get(key)||'').trim() : profile[key]);
+      body.total_experience = f.has('total_experience') ? Number(f.get('total_experience')) : profile.total_experience;
+      body.skills = f.has('skills') ? [...new Set(String(f.get('skills')).split(',').map(x=>x.trim()).filter(Boolean))] : profile.skills;
       button.disabled = true;
       const original = button.textContent; button.textContent = 'Saving profile…';
       try {
@@ -360,7 +403,7 @@ profilePage = async function() {
           const upload = new FormData(); upload.append('file', picture);
           await api('/candidate/profile-picture', {method:'POST',body:upload});
         }
-        await api(`/candidates/${profile.id}/availability`, {method:'PUT',body:JSON.stringify({status:data.opportunity_status,available_from:data.available_from || null})});
+        if (!editing || f.has('extra_opportunity_status')) await api(`/candidates/${profile.id}/availability`, {method:'PUT',body:JSON.stringify({status:data.opportunity_status,available_from:data.available_from || null})});
         const resume = resumeField.querySelector('input').files[0];
         if (resume) {
           if (resume.size > 5 * 1024 * 1024) throw new Error('Resume must be 5 MB or smaller.');
