@@ -108,7 +108,7 @@ function setupCareerWizard(form, host, initialStep = 0, editSection = null) {
     steps.forEach(step => { if (!selected.contains(step)) step.hidden = true; });
     host.append(selected);
     selected.dataset.profileEditor = 'true';
-    for (const control of form.querySelectorAll('input,select,textarea')) control.disabled = !selected.contains(control);
+    for (const control of form.querySelectorAll('input,select,textarea')) control.disabled = control.disabled || !selected.contains(control);
     steps = [selected];
     initialStep = 0;
     const hero = document.querySelector('.profile-hero');
@@ -307,6 +307,12 @@ profilePage = async function() {
     const requestedSection = location.hash.replace('#', '') || 'identity';
     const resumeStep = Math.max(serverStep, Number(localDraft.step) || 0);
     const wizard = setupCareerWizard(form, host, Number.isInteger(resumeStep) ? resumeStep - 1 : 0, editing ? requestedSection : null);
+    if (editing) {
+      const editor = host.querySelector('[data-profile-editor]');
+      for (const records of editor.querySelectorAll('[data-records]')) {
+        if (!records.children.length && requestedSection !== 'personal') host.querySelector(`[data-add="${records.dataset.records}"]`).click();
+      }
+    }
     const builder = form.closest('.profile-builder');
     builder.classList.add('candidate-onboarding-builder');
     if (!editing) builder.querySelector('.profile-hero h1').textContent = 'Let’s build your profile';
@@ -394,6 +400,20 @@ profilePage = async function() {
       ['full_name','email','phone','country','city','current_title','linkedin_url','current_employer'].forEach(key=>body[key]=f.has(key) ? String(f.get(key)||'').trim() : profile[key]);
       body.total_experience = f.has('total_experience') ? Number(f.get('total_experience')) : profile.total_experience;
       body.skills = f.has('skills') ? [...new Set(String(f.get('skills')).split(',').map(x=>x.trim()).filter(Boolean))] : profile.skills;
+      if (editing) {
+        // Send only enabled fields from this section. The API merges them with saved data.
+        const changedDetails = {};
+        for (const [key] of f) if (key.startsWith('extra_')) changedDetails[key.slice(6)] = data[key.slice(6)];
+        for (const [key] of collections) {
+          if (host.querySelector('[data-profile-editor]').contains(host.querySelector(`[data-records="${key}"]`))) changedDetails[key] = data[key];
+        }
+        if (requestedSection === 'education') {
+          changedDetails.education_specialization = data.education_specialization;
+          changedDetails.graduation_year = data.graduation_year;
+        }
+        body.country_specific_data = changedDetails;
+        for (const key of Object.keys(body)) if (key !== 'country_specific_data' && !f.has(key)) delete body[key];
+      }
       button.disabled = true;
       const original = button.textContent; button.textContent = 'Saving profile…';
       try {
@@ -410,7 +430,7 @@ profilePage = async function() {
           const upload = new FormData(); upload.append('file', resume);
           await api(`/candidates/${profile.id}/resume`, {method:'POST',body:upload});
         }
-        await api('/candidate/profile',{method:'PUT',body:JSON.stringify(body)}); localStorage.removeItem(draftKey); toast('Career profile saved'); route('/candidate/profile'); }
+        await api('/candidate/profile',{method:editing ? 'PATCH' : 'PUT',body:JSON.stringify(body)}); localStorage.removeItem(draftKey); toast('Career profile saved'); route('/candidate/profile'); }
       catch(error) { toast(error.message,true); }
       finally {button.disabled=false;button.textContent=original;}
     };

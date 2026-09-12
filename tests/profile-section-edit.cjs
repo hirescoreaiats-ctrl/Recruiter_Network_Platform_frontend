@@ -20,7 +20,7 @@ const assert = require('node:assert/strict');
     window.route = path => window.lastRoute = path;
     window.wireDownloads = () => {};
     window.fixture = {id:1,full_name:'Test User',email:'test@example.com',phone:'9999999999',country:'IN',city:'Delhi',current_title:'Developer',total_experience:2,current_employer:'Example',linkedin_url:'',skills:['Python','SQL','Git'],created_at:'2026-09-12',country_specific_data:{onboarding_step:'complete',career_stage:'experienced',highest_qualification:'Graduation',preferred_locations:['Delhi','Pune'],projects:[{title:'Original', custom:'preserve'}],profile_summary:'Original summary'}};
-    window.api = async (url, options) => { if(options) { window.savedBody=JSON.parse(options.body); return {}; } if (url === '/candidate/matching-status') return {availability:{status:'open_to_right_opportunity'}}; return structuredClone(window.fixture); };
+    window.api = async (url, options) => { if(options) { window.savedBody=JSON.parse(options.body); window.savedMethod=options.method; return {}; } if (url === '/candidate/matching-status') return {availability:{status:'open_to_right_opportunity'}}; return structuredClone(window.fixture); };
   });
   await page.addScriptTag({content:source.slice(source.indexOf('const readOnlyProfilePage='),source.indexOf('function candidateAgentReply'))});
   await page.evaluate(()=>{ window.candidatePortalBaseProfile = profilePage; });
@@ -35,9 +35,8 @@ const assert = require('node:assert/strict');
       const result=await page.evaluate(()=>({body:savedBody,route:lastRoute}));
       assert.equal(result.route,'/candidate/profile');
       assert.equal(result.body.country_specific_data.profile_summary,'Changed summary');
-      assert.deepEqual(result.body.country_specific_data.projects,[{title:'Original',custom:'preserve'}]);
-      assert.deepEqual(result.body.country_specific_data.preferred_locations,['Delhi','Pune']);
-      assert.equal(result.body.total_experience,2);
+      assert.deepEqual(result.body, {country_specific_data:{profile_summary:'Changed summary'}});
+      assert.equal(await page.evaluate(()=>savedMethod), 'PATCH');
     }
   }
   await page.evaluate(()=>renderCandidateProfileOverview(fixture));
