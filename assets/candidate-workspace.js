@@ -27,7 +27,7 @@ async function hydrateCandidateAvatar() {
     const blob = await response.blob();
     if (window.candidateAvatarObjectUrl) URL.revokeObjectURL(window.candidateAvatarObjectUrl);
     window.candidateAvatarObjectUrl = URL.createObjectURL(blob);
-    document.querySelectorAll('.cw-top-avatar, .jp-profile-avatar, .jp-profile-head > span, .cpw-photo-preview').forEach(target => {
+    document.querySelectorAll('.cw-top-avatar, .cw-menu-avatar, .jp-profile-avatar, .jp-profile-head > span, .cpw-photo-preview').forEach(target => {
       target.innerHTML = `<img src="${window.candidateAvatarObjectUrl}" alt="${candidateEscape(session.user.name)} profile picture">`;
       target.classList.add('has-photo');
     });
@@ -46,7 +46,6 @@ layout = function(content, title) {
     ['Home', '/candidate/dashboard', 'home'],
     ['My Profile', '/candidate/profile', 'profile'],
     ['My Matches', '/candidate/matches', 'spark'],
-    ['Availability', '/candidate/availability', 'clock'],
     ['My Resume', '/candidate/resume', 'file']
   ];
   sidebar.id = 'candidate-navigation';
@@ -57,7 +56,7 @@ layout = function(content, title) {
   sidebar.querySelector('#logout').onclick = logoutAction;
   const pageLabel = sections.find(([,path]) => path === location.pathname)?.[0] || title;
   const initials = candidateInitials(session.user.name);
-  shell.querySelector('.topbar').innerHTML = `<div class="cw-breadcrumb"><button type="button" class="cw-menu" aria-label="Open navigation" aria-controls="candidate-navigation" aria-expanded="false">${candidateIcon('menu')}</button><span>Candidate</span><i>/</i><b>${candidateEscape(pageLabel)}</b></div><div class="cw-top-actions"><a href="/candidate/profile" data-link class="cw-find-jobs">${candidateIcon('profile')}<span>Complete profile</span></a><a href="/candidate/profile" data-link class="cw-top-avatar" aria-label="My profile">${candidateEscape(initials)}</a></div>`;
+  shell.querySelector('.topbar').innerHTML = `<div class="cw-breadcrumb"><button type="button" class="cw-menu" aria-label="Open navigation" aria-controls="candidate-navigation" aria-expanded="false">${candidateIcon('menu')}</button><span>Candidate</span><i>/</i><b>${candidateEscape(pageLabel)}</b></div><div class="cw-top-actions"><a href="/candidate/profile" data-link class="cw-find-jobs">${candidateIcon('profile')}<span>Complete profile</span></a><div class="cw-profile-menu-wrap"><button type="button" class="cw-top-avatar" aria-label="Open profile menu" aria-haspopup="menu" aria-expanded="false">${candidateEscape(initials)}</button><section class="cw-profile-menu" role="menu" hidden><header><span class="cw-menu-avatar">${candidateEscape(initials)}</span><div><b>${candidateEscape(session.user.name)}</b><small>Candidate account</small></div></header><div class="cw-menu-status"><span>JOB SEARCH STATUS</span><p>Loading your current preference…</p></div><nav><a href="/candidate/profile" data-link role="menuitem">${candidateIcon('profile')}<span><b>View profile</b><small>Update career details</small></span></a><a href="/candidate/resume" data-link role="menuitem">${candidateIcon('file')}<span><b>My resume</b><small>Manage your latest resume</small></span></a></nav><button type="button" class="cw-menu-logout">${candidateIcon('logout')}<span>Logout</span></button></section></div></div>`;
   const overlay = document.createElement('button');
   overlay.className = 'cw-nav-backdrop';
   overlay.setAttribute('aria-label', 'Close navigation');
@@ -71,8 +70,61 @@ layout = function(content, title) {
   };
   menu.onclick = () => setOpen(!sidebar.classList.contains('open'));
   overlay.onclick = () => { setOpen(false); menu.focus(); };
-  shell.onkeydown = event => { if (event.key === 'Escape') { setOpen(false); menu.focus(); } };
+  const profileWrap = shell.querySelector('.cw-profile-menu-wrap');
+  const profileButton = profileWrap.querySelector('.cw-top-avatar');
+  const profileMenu = profileWrap.querySelector('.cw-profile-menu');
+  const setProfileOpen = open => {
+    profileMenu.hidden = !open;
+    profileButton.setAttribute('aria-expanded', String(open));
+    profileButton.setAttribute('aria-label', open ? 'Close profile menu' : 'Open profile menu');
+  };
+  profileButton.onclick = event => { event.stopPropagation(); setProfileOpen(profileMenu.hidden); };
+  profileMenu.onclick = event => event.stopPropagation();
+  profileMenu.querySelector('.cw-menu-logout').onclick = logoutAction;
+  profileMenu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setProfileOpen(false)));
+  if (window.candidateProfileMenuOutside) document.removeEventListener('click', window.candidateProfileMenuOutside);
+  window.candidateProfileMenuOutside = () => setProfileOpen(false);
+  document.addEventListener('click', window.candidateProfileMenuOutside);
+  shell.onkeydown = event => { if (event.key === 'Escape') { setOpen(false); setProfileOpen(false); profileButton.focus(); } };
+  hydrateCandidateProfileMenu(profileMenu);
+  if (window.candidateOpenProfileMenu) { window.candidateOpenProfileMenu = false; setProfileOpen(true); }
   hydrateCandidateAvatar();
+};
+
+async function hydrateCandidateProfileMenu(menu) {
+  try {
+    const [profile, matching] = await Promise.all([api('/candidate/profile'), api('/candidate/matching-status')]);
+    if (!document.contains(menu)) return;
+    const header = menu.querySelector('header div');
+    header.innerHTML = `<b>${candidateEscape(profile.full_name || session.user.name)}</b><small>${candidateEscape(profile.email || 'Candidate account')}</small>`;
+    const current = matching.availability || {};
+    const statuses = [
+      ['actively_looking', 'Actively looking', 'Show me relevant opportunities'],
+      ['open_to_right_opportunity', 'Open to opportunities', 'Only show strong profile matches'],
+      ['not_looking', 'Not looking right now', 'Pause new opportunity alerts']
+    ];
+    const statusBox = menu.querySelector('.cw-menu-status');
+    statusBox.innerHTML = `<span>JOB SEARCH STATUS</span><div>${statuses.map(([value, label, copy]) => `<button type="button" data-quick-status="${value}" class="${current.status === value ? 'active' : ''}"><i></i><span><b>${label}</b><small>${copy}</small></span>${current.status === value ? '<em>Current</em>' : ''}</button>`).join('')}</div>`;
+    statusBox.querySelectorAll('[data-quick-status]').forEach(button => button.onclick = async () => {
+      const controls = [...statusBox.querySelectorAll('[data-quick-status]')];
+      controls.forEach(control => control.disabled = true);
+      try {
+        await api(`/candidates/${profile.id}/availability`, {method: 'PUT', body: JSON.stringify({status: button.dataset.quickStatus, available_from: current.available_from || null})});
+        controls.forEach(control => { control.classList.toggle('active', control === button); control.querySelector('em')?.remove(); });
+        button.insertAdjacentHTML('beforeend', '<em>Current</em>');
+        current.status = button.dataset.quickStatus;
+        toast('Job search status updated');
+      } catch (error) { toast(error.message, true); }
+      finally { controls.forEach(control => control.disabled = false); }
+    });
+  } catch (_) {
+    if (document.contains(menu)) menu.querySelector('.cw-menu-status').innerHTML = '<span>JOB SEARCH STATUS</span><p>Open the menu again to refresh your status.</p>';
+  }
+}
+
+availabilityPage = async function () {
+  window.candidateOpenProfileMenu = true;
+  route('/candidate/dashboard');
 };
 
 resumePage = async function() {
