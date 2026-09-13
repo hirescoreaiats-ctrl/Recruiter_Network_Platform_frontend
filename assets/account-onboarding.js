@@ -7,6 +7,10 @@ const modeLabels = {complete: 'Complete HireScoreAI', basic: 'Basic Hiring Dashb
 const escapeAccountHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 roles.requirement_vendor.label = accountLabels.requirement_vendor;
 
+function accountOnboardingShell(body) {
+  app.innerHTML = '<div class="account-onboarding-shell"><main class="account-onboarding-panel"><div class="auth-card">' + body + '</div></main></div>';
+}
+
 function roleCards(selected) {
   return ['requirement_vendor', 'candidate', 'sourcing_partner'].map(role =>
     '<button type="button" class="role-card ' + (selected === role ? 'selected' : '') +
@@ -233,7 +237,8 @@ function captureOnboardingDraft() {
 }
 function choicePage(kind) {
   const state = kind === 'register' ? onboarding : loginChoice;
-  authShell('<div class="eyebrow">' + (kind === 'register' ? 'Create your account' : 'Welcome back') +
+  const shell = kind === 'register' ? accountOnboardingShell : authShell;
+  shell('<div class="eyebrow">' + (kind === 'register' ? 'Create your account' : 'Welcome back') +
     '</div><h2>How will you use HireScoreAI?</h2><p class="muted">Choose your account type to continue.</p>' +
     '<div class="role-grid account-role-grid" role="group" aria-label="Account type">' + roleCards(state.role) +
     '</div><button type="button" id="account-continue" class="btn btn-primary account-continue"' +
@@ -259,7 +264,7 @@ function choicePage(kind) {
   };
 }
 function modeChoicePage() {
-  authShell('<button type="button" id="account-back" class="text-link">← Account type</button>' +
+  accountOnboardingShell('<button type="button" id="account-back" class="text-link">← Account type</button>' +
     '<div class="eyebrow">Employer / Vendor · Step 2 of 3</div><h2>Choose your hiring workspace</h2>' +
     '<p class="muted">The same HireScoreAI dashboard in both options. Choose whether you want LLM features.</p>' +
     '<div class="product-mode-grid" role="group" aria-label="Hiring workspace">' +
@@ -286,7 +291,7 @@ registerPage = function() {
   if (onboarding.role === 'requirement_vendor' && (onboarding.step === 'mode' || !onboarding.mode)) return modeChoicePage();
   selectedRole = onboarding.role;
   const employer = selectedRole === 'requirement_vendor', basic = employer && onboarding.mode === 'basic';
-  authShell('<button type="button" id="account-back" class="text-link">← Back</button><div class="eyebrow">' +
+  accountOnboardingShell('<button type="button" id="account-back" class="text-link">← Back</button><div class="eyebrow">' +
     escapeAccountHtml(employer ? modeLabels[onboarding.mode] : accountLabels[selectedRole]) +
     '</div><h2>' + (employer ? 'Set up your employer profile' : 'Create your ' + accountLabels[selectedRole].toLowerCase() + ' account') +
     '</h2><p class="muted">Your account and profile stay in this local recruitment platform.</p>' +
