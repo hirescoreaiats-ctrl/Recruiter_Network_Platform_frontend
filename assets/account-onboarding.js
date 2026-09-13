@@ -1,5 +1,5 @@
 /* Shared employer workspace. Role/product choices never grant server permission. */
-const onboarding = {role: null, mode: null, step: 'role', draft: {}};
+const onboarding = {role: null, mode: null, step: 'role', detailStep: 0, draft: {}};
 const loginChoice = {role: null, step: 'role'};
 const legacyRegistrationFields = registrationFields;
 const accountLabels = {requirement_vendor: 'Employer / Vendor', candidate: 'Candidate', sourcing_partner: 'Sourcing Partner'};
@@ -233,7 +233,7 @@ async function candidatePreferencesPage() {
 }
 function captureOnboardingDraft() {
   const form = document.getElementById('register');
-  if (form) onboarding.draft = Object.fromEntries(new FormData(form));
+  if (form) onboarding.draft = {...onboarding.draft, ...Object.fromEntries(new FormData(form))};
 }
 function choicePage(kind) {
   const state = kind === 'register' ? onboarding : loginChoice;
@@ -248,7 +248,7 @@ function choicePage(kind) {
   document.querySelectorAll('[data-account-role]').forEach(button => {
     button.onclick = () => {
       if (state.role !== button.dataset.accountRole && kind === 'register') {
-        onboarding.mode = null; onboarding.draft = {};
+        onboarding.mode = null; onboarding.detailStep = 0; onboarding.draft = {};
       }
       state.role = button.dataset.accountRole;
       if (kind === 'register' && state.role === 'candidate') {
@@ -283,57 +283,90 @@ function modeChoicePage() {
     onboarding.mode = button.dataset.productMode; modeChoicePage();
     document.querySelector('[data-product-mode="' + onboarding.mode + '"]').focus();
   });
-  document.getElementById('mode-continue').onclick = () => { onboarding.step = 'details'; registerPage(); };
+  document.getElementById('mode-continue').onclick = () => { onboarding.step = 'details'; onboarding.detailStep = 0; registerPage(); };
 }
+
+function registrationDetailSteps(role, basic) {
+  const account = '<div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="160"></div>' +
+    '<div class="field"><label>' + (role === 'requirement_vendor' ? 'Work email' : 'Email') + '</label><input name="email" type="email" autocomplete="email" required></div>' +
+    '<div class="field"><label>Password</label><input name="password" type="password" autocomplete="new-password" minlength="8" required></div>' +
+    '<div class="field"><label>Phone</label><input name="phone" type="tel" autocomplete="tel" required></div>';
+  if (role === 'requirement_vendor') return [
+    {label: 'Account', title: 'Create your login', hint: 'Start with the contact details you will use to access HireScoreAI.', fields: account},
+    {label: 'Company', title: 'Tell us about your company', hint: 'These details identify your hiring organization.', fields:
+      '<div class="field"><label>Company name</label><input name="company_name" required></div>' +
+      '<div class="field"><label>Company type</label><select name="company_type" required><option>Staffing Company</option><option>Recruitment Agency</option><option>Consulting Company</option><option>Direct Employer</option><option>RPO</option><option>Other</option></select></div>' +
+      '<div class="field"><label>Company size</label><select name="company_size"' + (basic ? ' required' : '') + '><option value="">Select size</option><option>1–10</option><option>11–50</option><option>51–200</option><option>201–500</option><option>501–1000</option><option>1000+</option></select></div>' +
+      '<div class="field"><label>Industry</label><input name="industry" maxlength="160"' + (basic ? ' required' : '') + '></div>'},
+    {label: 'Location', title: 'Where do you hire from?', hint: 'Add your company location and public links.', fields:
+      '<div class="field"><label>Country</label><select name="country" required>' + countries() + '</select></div>' +
+      '<div class="field"><label>City / Location</label><input name="city" required></div>' +
+      '<div class="field"><label>Website</label><input name="website" type="url" placeholder="https://example.com"></div>' +
+      '<div class="field"><label>LinkedIn company URL</label><input name="linkedin_url" type="url" placeholder="https://linkedin.com/company/..."></div>'},
+    {label: 'Hiring', title: 'Complete your hiring profile', hint: 'This helps HireScoreAI tailor your recruiting workspace.', fields:
+      '<div class="field wide"><label>Company description</label><textarea name="description"' + (basic ? ' required' : '') + '></textarea></div>' +
+      '<div class="field wide"><label>Hiring requirements</label><textarea name="hiring_requirements" placeholder="Roles, locations and hiring volume"' + (basic ? ' required' : '') + '></textarea></div>' +
+      '<label class="account-consent wide"><input type="checkbox" name="consent_accepted" required> I am authorized to represent this company and consent to storing this employer profile in the platform.</label>'}
+  ];
+  return [
+    {label: 'Account', title: 'Create your login', hint: 'Start with the details you will use to access HireScoreAI.', fields: account},
+    {label: 'Profile', title: 'Tell us about your sourcing profile', hint: 'Choose how you work and add your experience.', fields:
+      '<div class="field"><label>Recruiter type</label><select name="recruiter_type"><option value="individual">Individual Recruiter</option><option value="agency">Agency</option></select></div>' +
+      '<div class="field"><label>Agency / Company name</label><input name="agency_name"></div>' +
+      '<div class="field"><label>Years of sourcing experience</label><input name="experience_years" type="number" min="0" step=".5"></div>'},
+    {label: 'Markets', title: 'Add your sourcing markets', hint: 'Requirements will be matched using these locations and markets.', fields:
+      '<div class="field"><label>Country</label><select name="country" required>' + countries() + '</select></div>' +
+      '<div class="field"><label>City / Location</label><input name="city" required></div>' +
+      '<div class="field"><label>Markets</label><input name="hiring_markets" placeholder="India IT, US IT"></div>' +
+      '<div class="field"><label>Locations / Cities / States</label><input name="locations" placeholder="Bengaluru, Texas"></div>'},
+    {label: 'Expertise', title: 'Complete your expertise', hint: 'Add the roles, skills and employment types you source.', fields:
+      '<div class="field"><label>Technologies</label><input name="skill_areas" placeholder="Java, Data, DevOps"></div>' +
+      '<div class="field"><label>Role specializations</label><input name="role_specializations" placeholder="Java Developer, Data Engineer"></div>' +
+      '<div class="field"><label>Employment expertise</label><input name="employment_expertise" placeholder="W2, C2C, Full-Time"></div>' +
+      '<div class="field"><label>Work authorization expertise</label><input name="work_authorization_expertise" placeholder="USC, GC, H4 EAD"></div>' +
+      '<div class="field wide"><label>Industries</label><input name="industries" placeholder="Banking, Automotive"></div>'}
+  ];
+}
+
 registerPage = function() {
   if (onboarding.step === 'role' || !onboarding.role) return choicePage('register');
   if (onboarding.role === 'candidate') return candidateRegistrationPage();
   if (onboarding.role === 'requirement_vendor' && (onboarding.step === 'mode' || !onboarding.mode)) return modeChoicePage();
   selectedRole = onboarding.role;
   const employer = selectedRole === 'requirement_vendor', basic = employer && onboarding.mode === 'basic';
+  const steps = registrationDetailSteps(selectedRole, basic);
+  onboarding.detailStep = Math.max(0, Math.min(onboarding.detailStep || 0, steps.length - 1));
+  const current = steps[onboarding.detailStep], finalStep = onboarding.detailStep === steps.length - 1;
   accountOnboardingShell('<button type="button" id="account-back" class="text-link">← Back</button><div class="eyebrow">' +
     escapeAccountHtml(employer ? modeLabels[onboarding.mode] : accountLabels[selectedRole]) +
-    '</div><h2>' + (employer ? 'Set up your employer profile' : 'Create your ' + accountLabels[selectedRole].toLowerCase() + ' account') +
-    '</h2><p class="muted">Your account and profile stay in this local recruitment platform.</p>' +
+    '</div><div class="registration-progress" aria-label="Registration progress">' + steps.map((step, index) =>
+      '<span class="' + (index < onboarding.detailStep ? 'done' : index === onboarding.detailStep ? 'active' : '') + '"><i>' + (index < onboarding.detailStep ? '✓' : index + 1) + '</i><b>' + step.label + '</b></span>').join('') +
+    '</div><p class="registration-step-count">Step ' + (onboarding.detailStep + 1) + ' of ' + steps.length + '</p><h2>' + current.title +
+    '</h2><p class="muted">' + current.hint + '</p>' +
     '<p id="account-error" role="alert" class="account-error" hidden></p><form id="register">' +
-    '<div class="form-grid"><div class="field"><label>Full name</label><input name="name" autocomplete="name" required maxlength="160"></div>' +
-    '<div class="field"><label>' + (employer ? 'Work email' : 'Email') + '</label><input name="email" type="email" autocomplete="email" required></div>' +
-    '<div class="field"><label>Password</label><input name="password" type="password" autocomplete="new-password" minlength="8" required></div>' +
-    '<div class="field"><label>Phone</label><input name="phone" type="tel" autocomplete="tel" required></div></div>' +
-    '<div class="form-grid account-profile-fields">' + legacyRegistrationFields(selectedRole) +
-    (employer ? '<div class="field"><label>Company size</label><select name="company_size"' + (basic ? ' required' : '') +
-      '><option value="">Select size</option><option>1–10</option><option>11–50</option><option>51–200</option><option>201–500</option><option>501–1000</option><option>1000+</option></select></div>' +
-      '<div class="field"><label>Industry</label><input name="industry" maxlength="160"' + (basic ? ' required' : '') + '></div>' +
-      '<div class="field wide"><label>Hiring requirements</label><textarea name="hiring_requirements" placeholder="Roles, locations and hiring volume"' + (basic ? ' required' : '') + '></textarea></div>' +
-      '<label class="account-consent wide"><input type="checkbox" name="consent_accepted" required> I am authorized to represent this company and consent to storing this employer profile in the local platform. This is not verification of the company.</label>' : '') +
-    '</div><div class="actions"><button class="btn btn-primary" id="create-account">Create account</button>' +
+    '<div class="form-grid account-profile-fields registration-step-fields">' + current.fields +
+    '</div><div class="actions registration-actions"><button class="btn btn-primary" id="create-account">' + (finalStep ? 'Create account' : 'Save and continue') + '</button>' +
     '<a href="/auth/login" data-link>Already have an account?</a></div></form>');
   const form = document.getElementById('register');
-  wireCountryFields();
-  const countryControl = form.querySelector('[data-country]');
-  if (countryControl) {
-    const updateCountryFields = countryControl.onchange;
-    countryControl.onchange = () => { updateCountryFields(); labelAccountFields(form); };
-    if (onboarding.draft.country) {
-      countryControl.value = onboarding.draft.country;
-      countryControl.onchange();
-    }
-  }
-  if (basic) form.elements.description.required = true;
   for (const [name, value] of Object.entries(onboarding.draft)) {
     const control = form.elements.namedItem(name);
     if (control) control.type === 'checkbox' ? control.checked = value === 'on' : control.value = value;
   }
   labelAccountFields(form);
   document.getElementById('account-back').onclick = () => {
-    captureOnboardingDraft(); onboarding.step = employer ? 'mode' : 'role'; registerPage();
+    captureOnboardingDraft();
+    if (onboarding.detailStep > 0) onboarding.detailStep -= 1;
+    else onboarding.step = employer ? 'mode' : 'role';
+    registerPage();
   };
   form.onsubmit = async event => {
     event.preventDefault();
     const button = document.getElementById('create-account');
     if (button.disabled || !form.reportValidity()) return;
+    captureOnboardingDraft();
+    if (!finalStep) { onboarding.detailStep += 1; registerPage(); return; }
     button.disabled = true; button.textContent = 'Creating account…';
-    const values = Object.fromEntries(new FormData(form)), profile = {...values};
+    const values = {...onboarding.draft}, profile = {...values};
     ['name', 'email', 'password', 'phone'].forEach(key => delete profile[key]);
     ['skills','industries','skill_areas','hiring_markets','role_specializations','locations','employment_expertise','work_authorization_expertise'].forEach(key => {
       if (profile[key]) profile[key] = profile[key].split(',').map(value => value.trim()).filter(Boolean);
@@ -342,13 +375,13 @@ registerPage = function() {
     for (const key of Object.keys(profile)) if (key.startsWith('extra_')) {
       profile.country_specific_data[key.slice(6)] = profile[key]; delete profile[key];
     }
-    if (employer) profile.consent_accepted = form.elements.consent_accepted.checked;
+    if (employer) profile.consent_accepted = values.consent_accepted === 'on';
     const payload = {name: values.name, email: values.email, password: values.password, phone: values.phone, role: selectedRole, profile};
     if (employer) payload.product_mode = onboarding.mode;
     try {
       session = await api('/auth/register', {method: 'POST', body: JSON.stringify(payload)});
       localStorage.setItem('tb_session', JSON.stringify(session));
-      onboarding.draft = {}; onboarding.step = 'role'; onboarding.role = null; onboarding.mode = null;
+      onboarding.draft = {}; onboarding.step = 'role'; onboarding.detailStep = 0; onboarding.role = null; onboarding.mode = null;
       route(roles[session.user.role].home);
     } catch (error) {
       showAccountError(error.message); button.disabled = false; button.textContent = 'Create account';
