@@ -50,7 +50,7 @@ layout = function(content, title) {
   ];
   sidebar.id = 'candidate-navigation';
   sidebar.innerHTML = `
-    <a class="cw-brand" href="/candidate/dashboard" data-link aria-label="HireScore AI home"><span class="cw-logo"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M5 22V13h5v9zm8 0V8h5v14zm8 0V3h5v19z" fill="currentColor"/><path d="m5 26 21-8" stroke="#9c91ff" stroke-width="2"/></svg></span><span><strong>HireScore AI</strong><small>CANDIDATE CAREER PROFILE</small></span></a>
+    <a class="cw-brand" href="/candidate/dashboard" data-link aria-label="HireScore AI candidate career profile home"><img src="/assets/hirescore-candidate-career-profile.png" alt="HireScore AI — Candidate Career Profile"></a>
     <div class="cw-nav-body"><span class="cw-section-label">MY CAREER</span><nav class="nav cw-nav" aria-label="Candidate career profile">${sections.map(([label,path,icon]) => `<a href="${path}" data-link class="${location.pathname===path?'active':''}" ${location.pathname===path?'aria-current="page"':''}><span class="cw-nav-icon">${candidateIcon(icon)}</span><span>${label}</span></a>`).join('')}</nav></div>
     <div class="cw-sidebar-bottom"><button type="button" id="logout" class="cw-logout">${candidateIcon('logout')}<span>Logout</span></button></div>`;
   sidebar.querySelector('#logout').onclick = logoutAction;
