@@ -111,6 +111,7 @@ render=function(){
   if(publicMatch)return hsPublicApplyPage(publicMatch[1]);
   if(session?.user?.role==='requirement_vendor'){
     const edit=path.match(/^\/vendor\/jobs\/(\d+)\/edit$/),candidates=path.match(/^\/vendor\/jobs\/(\d+)\/candidates$/),posts=path.match(/^\/vendor\/jobs\/(\d+)\/posts$/);
+    if(path==='/vendor/dashboard')return vendorDashboard();
     if(path==='/vendor/jobs/new'||path==='/vendor/requirements/new')return hsJobFormPage();
     if(edit)return hsJobFormPage(edit[1]);
     if(candidates)return hsCandidatesPage(candidates[1]);
