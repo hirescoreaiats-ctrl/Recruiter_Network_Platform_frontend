@@ -11,6 +11,7 @@ const vendor = fs.readFileSync(path.join(root, 'assets', 'vendor-workspace.js'),
 
 assert.match(index, /vendor-workspace\.css/);
 assert.match(index, /vendor-dashboard\.css/);
+assert.match(index, /requirement-flow\.css/);
 assert.match(index, /vendor-workspace\.js/);
 assert.match(index, /vendor-dashboard\.js/);
 assert.match(app, /requirement_vendor:\[\['Requirements','\/vendor\/dashboard'\]/);
@@ -28,6 +29,14 @@ assert.match(dashboardStyles, /\.vendor-command-center/);
 assert.match(dashboardStyles, /\.vendor-stat-grid/);
 assert.match(vendor, /session\?\.user\?\.role==='requirement_vendor'/);
 assert.match(vendor, /if\(path==='\/vendor\/jobs\/new'/);
+assert.match(vendor, /sourcing_decision/);
+assert.match(vendor, /\/vendor\/requirements\/\$\{saved\.id\}\/sourcing-model/);
+assert.match(vendor, /Choose a Sourcing Model/);
+assert.match(vendor, /Sourcing Partner/);
+assert.match(vendor, /Candidate Database/);
+assert.match(vendor, /Free for 90 days/);
+assert.match(vendor, /Pricing depends on the selected partner/);
+assert.match(vendor, /Usage based/);
 assert.match(vendor, /if\(path==='\/vendor\/dashboard'\)return vendorDashboard\(\)/);
 assert.match(vendor, /if\(path==='\/vendor\/pipeline'\)return hsInterviewPage\(\)/);
 assert.doesNotMatch(vendor, /login\.html|Signup\.html|loginUser\(|signupUser\(/);
